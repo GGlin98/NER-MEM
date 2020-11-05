@@ -5,6 +5,7 @@ import pickle
 
 import nltk
 from nltk.classify.maxent import MaxentClassifier
+from nltk.classify.naivebayes import NaiveBayesClassifier
 from nltk.corpus import gazetteers, names
 from sklearn.metrics import (accuracy_score, fbeta_score, precision_score,
                              recall_score)
@@ -167,6 +168,8 @@ class MEM:
             classifier = SklearnClassifier(LinearSVC()).train(train_samples)
         elif clf_type == 'MLP':
             classifier = SklearnClassifier(MLPClassifier()).train(train_samples)
+        elif clf_type == 'Naive Bayes':
+            classifier = NaiveBayesClassifier.train(train_samples)
         else:
             classifier = MaxentClassifier.train(train_samples, max_iter=self.max_iter)
         self.dict_classifiers[clf_type] = classifier

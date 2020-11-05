@@ -86,6 +86,24 @@ $(function () {
     $("#clf").selectmenu();
 });
 
+$(function () {
+    $(document).tooltip({
+        position: {
+            my: "center bottom-20",
+            at: "center top",
+            using: function (position, feedback) {
+                $(this).css(position);
+                $("<div>")
+                    .addClass("arrow")
+                    .addClass(feedback.vertical)
+                    .addClass(feedback.horizontal)
+                    .appendTo(this);
+            }
+        }
+    });
+});
+
+
 let text;
 const btn_submit = document.getElementById('text_submit');
 btn_submit.addEventListener('click', postData);

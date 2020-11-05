@@ -37,7 +37,7 @@ if __name__ == '__main__':
     parser.add_argument('-d', '--dev', nargs='?', const=True, default=True)
     parser.add_argument('-s', '--show', nargs='?', const=True, default=False)
     parser.add_argument('-w', '--write', nargs='?', const=True, default=False)
-    parser.add_argument('-c', '--clf', nargs='?', const=True, default="SVM")
+    parser.add_argument('-c', '--clf', nargs='?', const=True, default="MLP")
     arg = parser.parse_args()
 
     # ====== Customization ======

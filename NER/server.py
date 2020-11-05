@@ -7,7 +7,7 @@ import json
 from MEM import MEM
 
 FILE = 'index.html'
-PORT = 8085
+PORT = 8088
 
 # web_dir = os.path.join(os.path.dirname(__file__), 'website')
 web_dir = os.path.abspath(os.path.join(os.getcwd(), "..")) + '/website'
