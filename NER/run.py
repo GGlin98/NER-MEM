@@ -1,19 +1,19 @@
 import argparse
-from MEM import MEMM
+from MEM import MEM
 
 
 def main():
-    classifier = MEMM()
+    classifier = MEM()
 
     if arg.train:
         classifier.max_iter = MAX_ITER
-        classifier.train()
-        classifier.dump_model()
+        classifier.train(arg.clf)
+        classifier.dump_model(arg.clf)
     if arg.dev:
         try:
-            classifier.load_model()
+            classifier.load_model(arg.clf)
             classifier.beta = BETA
-            classifier.test()
+            classifier.test(arg.clf)
             # classifier.test_StandfordNERTagger()
         except Exception as e:
             print(e)
@@ -37,6 +37,7 @@ if __name__ == '__main__':
     parser.add_argument('-d', '--dev', nargs='?', const=True, default=True)
     parser.add_argument('-s', '--show', nargs='?', const=True, default=False)
     parser.add_argument('-w', '--write', nargs='?', const=True, default=False)
+    parser.add_argument('-c', '--clf', nargs='?', const=True, default="SVM")
     arg = parser.parse_args()
 
     # ====== Customization ======

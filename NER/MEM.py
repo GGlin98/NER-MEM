@@ -9,14 +9,21 @@ from nltk.corpus import gazetteers, names
 from sklearn.metrics import (accuracy_score, fbeta_score, precision_score,
                              recall_score)
 
+from nltk.classify.scikitlearn import SklearnClassifier
+from sklearn.neural_network import MLPClassifier
+from sklearn.svm import SVC, LinearSVC, NuSVC
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
 
-class MEMM:
+
+class MEM:
     def __init__(self):
         self.train_path = "../data/train"
         self.dev_path = "../data/dev"
         self.beta = 0
         self.max_iter = 0
-        self.classifier = None
+        # self.classifier = None
+        self.dict_classifiers = {}
         self.locations = set(gazetteers.words())
         self.names = set(names.words())
         self.pos = None
@@ -75,16 +82,16 @@ class MEMM:
     #     #     features['POS is NNP'] = 1
     # 
     #     return features
-    
+
     def features(self, words, position):
         features = {}
         current_word = words[position]
         previous_word = ''
         next_word = ''
         if position > 0:
-            previous_word = words[position-1]
-        if position < len(words)-1:
-            next_word = words[position+1]
+            previous_word = words[position - 1]
+        if position < len(words) - 1:
+            next_word = words[position + 1]
         features['has_(%s)' % current_word] = True
         features['prev_label'] = self.previous_labels[position]
         # features['next_label'] = next_label
@@ -112,7 +119,7 @@ class MEMM:
         #     features['Lowercase'] = 1
 
         if position > 0:
-            previous_word = words[position-1]
+            previous_word = words[position - 1]
             if previous_word in {'a', 'an', 'the', 'A', 'An', 'The'}:
                 features['Not a name'] = True
         # if re.search(r'\d+', current_word) is not None:
@@ -135,13 +142,13 @@ class MEMM:
         labels = []
         for line in open(filename, "r", encoding="utf-8"):
             doublet = line.strip().split("\t")
-            if len(doublet) < 2:     # remove emtpy lines
+            if len(doublet) < 2:  # remove emtpy lines
                 continue
             words.append(doublet[0])
             labels.append(doublet[1])
         return words, labels
 
-    def train(self):
+    def train(self, clf_type):
         print('Training classifier...')
 
         words, labels = self.load_data(self.train_path)
@@ -154,19 +161,25 @@ class MEMM:
         features = [self.features(words, i)
                     for i in range(len(words))]
         train_samples = [(f, l) for (f, l) in zip(features, labels)]
-        classifier = MaxentClassifier.train(
-            train_samples, max_iter=self.max_iter)
-        self.classifier = classifier
-
+        if clf_type == 'SVM':
+            # classifier = SklearnClassifier( make_pipeline(StandardScaler(with_mean=False), SVC(kernel='rbf',
+            # probability=True, max_iter=1000))).train(train_samples)
+            classifier = SklearnClassifier(LinearSVC()).train(train_samples)
+        elif clf_type == 'MLP':
+            classifier = SklearnClassifier(MLPClassifier()).train(train_samples)
+        else:
+            classifier = MaxentClassifier.train(train_samples, max_iter=self.max_iter)
+        self.dict_classifiers[clf_type] = classifier
         self.pos = self.previous_labels = None
 
-    def test(self):
+    def test(self, clf_type):
         print('Testing classifier...')
         words, labels = self.load_data(self.dev_path)
         self.previous_labels = ["O"] + labels
         # next_labels = labels[1:] + ['O']
         features = [self.features(words, i) for i in range(len(words))]
-        results = [self.classifier.classify(n) for n in features]
+        classifier = self.dict_classifiers[clf_type]
+        results = [classifier.classify(n) for n in features]
 
         f_score = fbeta_score(labels, results, average='macro', beta=self.beta)
         precision = precision_score(labels, results, average='macro')
@@ -203,7 +216,7 @@ class MEMM:
 
         return True
 
-    def show_samples(self, bound):
+    def show_samples(self, bound, clf_type):
         """Show some sample probability distributions.
         """
         words, labels = self.load_data(self.train_path)
@@ -212,7 +225,7 @@ class MEMM:
         features = [self.features(words, i)
                     for i in range(len(words))]
         (m, n) = bound
-        pdists = self.classifier.prob_classify_many(features[m:n])
+        pdists = self.dict_classifiers[clf_type].prob_classify_many(features[m:n])
 
         print('  Words          P(PERSON)  P(O)\n' + '-' * 40)
         for (word, label, pdist) in list(zip(words, labels, pdists))[m:n]:
@@ -222,14 +235,14 @@ class MEMM:
                 fmt = '  %-15s  %6.4f  *%6.4f'
             print(fmt % (word, pdist.prob('PERSON'), pdist.prob('O')))
 
-    def write_results(self, bound):
+    def write_results(self, bound, clf_type):
         words, labels = self.load_data(self.dev_path)
         previous_labels = ["O"] + labels
         next_labels = labels[1:] + ['O']
         features = [self.features(words, i)
                     for i in range(len(words))]
         (m, n) = bound
-        pdists = self.classifier.prob_classify_many(features[m:n])
+        pdists = self.dict_classifiers[clf_type].prob_classify_many(features[m:n])
 
         with open('../dev_results.txt', 'w') as f:
             f.write('  Words          P(PERSON)  P(O)\n' + '-' * 40 + '\n')
@@ -260,7 +273,7 @@ class MEMM:
         features = [self.features(words, i)
                     for i in range(len(words))]
         (m, n) = bound
-        pdists = self.classifier.prob_classify_many(features[m:n])
+        pdists = self.dict_classifiers[clf_type].prob_classify_many(features[m:n])
 
         with open('../train_results.txt', 'w') as f:
             f.write('  Words          P(PERSON)  P(O)\n' + '-' * 40 + '\n')
@@ -285,29 +298,39 @@ class MEMM:
                 f.write(fmt % (word[0], word[1], word[2]))
         print('Wrote train_results.txt!')
 
-    def dump_model(self):
-        with open('../model.pkl', 'wb') as f:
-            pickle.dump(self.classifier, f)
+    def dump_model(self, clf_type):
+        with open('../model_' + clf_type + '.pkl', 'wb') as f:
+            pickle.dump(self.dict_classifiers[clf_type], f)
 
-    def load_model(self):
-        with open('../model.pkl', 'rb') as f:
-            self.classifier = pickle.load(f)
+    def load_model(self, clf_type):
+        with open('../model_' + clf_type + '.pkl', 'rb') as f:
+            self.dict_classifiers[clf_type] = pickle.load(f)
 
-    def predict_sentence(self, text):
+    def predict_sentence(self, text, clf_type):
         words = nltk.word_tokenize(text)
         self.previous_labels = ['O']
         results = []
 
+        try:
+            self.dict_classifiers[clf_type]
+        except KeyError:
+            self.load_model(clf_type)
+
         for i, word in enumerate(words):
             feature = self.features(words, i)
 
-            prob = self.classifier.prob_classify(feature).prob('PERSON')
-            if prob >= 0.5:
-                result = 'PERSON'
-            else:
-                result = 'O'
-            self.previous_labels.append(result)
-            results.append(dict(zip(['word', 'result', 'prob'], [word, result, prob])))
+            try:
+                prob = self.dict_classifiers[clf_type].prob_classify(feature).prob('PERSON')
+                if prob >= 0.5:
+                    result = 'PERSON'
+                else:
+                    result = 'O'
+                self.previous_labels.append(result)
+                results.append(dict(zip(['word', 'result', 'prob'], [word, result, prob])))
+            except AttributeError:
+                result = self.dict_classifiers[clf_type].classify(feature)
+                self.previous_labels.append(result)
+                results.append(dict(zip(['word', 'result'], [word, result])))
 
         self.previous_labels = None
 
